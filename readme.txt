@@ -7,7 +7,7 @@ Yet an other PHP implementation of the open source aes crypt file format:
 Use the library to encrypt/decrypt files at your site with PHP. The files 
 will be encrypted with 128-bit AES in CBC mode to a password of your choice.
 
-The project is a forc of IgoAtM:s code,
+The project is a fork of IgoAtM:s code,
  originally published at:
 
 https://forums.packetizer.com/viewtopic.php?f=72&t=403
