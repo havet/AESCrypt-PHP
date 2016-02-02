@@ -26,8 +26,7 @@ This library supports version 2 of the file format.
 
 Warning
 -------
-This library uses mcrypt;
-mcrypt doesn't encrypt text files correctly:
+Issue: Windows line endings in text files get corrupted.
 
 Windows line breaks are substituted by Linux line breaks.
 Thus the file doesn't hash the same after encryption-decryption,
