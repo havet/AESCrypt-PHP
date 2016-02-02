@@ -32,7 +32,7 @@ Windows line breaks are substituted by Linux line breaks.
 Thus the file doesn't hash the same after encryption-decryption,
 and pgp-signatures are invalid.
 
-You could avoid the problem by compressing the file before upload 
-to the server.
+You could avoid the problem by compressing the file before uploading 
+it to the server.
 
 
