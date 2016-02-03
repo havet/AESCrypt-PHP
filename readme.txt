@@ -24,15 +24,4 @@ https://www.aescrypt.com/aes_file_format.html
 
 This library supports version 2 of the file format.
 
-Warning
--------
-Issue: Windows line endings in text files get corrupted.
-
-Windows line breaks are substituted by Linux line breaks.
-Thus the file doesn't hash the same after encryption-decryption,
-and pgp-signatures are invalid.
-
-You could avoid the problem by compressing the file before uploading 
-it to the server.
-
 
