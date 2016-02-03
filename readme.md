@@ -1,11 +1,12 @@
 AES-Crypt-PHP
 =============
 
-Yet an other PHP implementation of the open source aes crypt file format:
+Yet an other PHP implementation of the open source AES crypt file format:
 .aes
 
 Use the library to encrypt/decrypt files at your site with PHP. The files 
-will be encrypted with 128-bit AES in CBC mode to a password of your choice.
+will be encrypted AES in CBC mode to a password of your choice. The password 
+is hashed to create a 256-bit key for the encryption.
 
 Usage: Please see example.php
 
