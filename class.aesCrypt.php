@@ -53,13 +53,13 @@
 class AESCrypt{
 // copy of java declerations
     const DIGEST_ALG = "sha256"; // hash compatible with c.aes and java-"SHA-256"
-    const CRYPT_ALG = MCRYPT_RIJNDAEL_128;//MCRYPT_RIJNDAEL_256;// java-"AES";
+    const CRYPT_ALG = "aes-256-cbc"; // java-"AES";
 #    const CRYPT_TRANS = "AES/CBC/NoPadding";// java-"AES/CBC/NoPadding"
 #    const DEFAULT_MAC = "0x010x230x450x670x890xab0xcd0xef";
     const KEY_SIZE = 32; // Note requirements of key size to allow AES compatibility
     const BLOCK_SIZE = 16; // final data must be padded to a whole block size
     const SHA_SIZE = 32;
-    //const PAD_BLOCK = 0; // padding characters: not used
+    const PAD_BLOCK = 0; // padding characters
 // valid extension type vectors
     const CREATED_BY = 0;
     const CREATED_DATE = 1;
@@ -231,6 +231,26 @@ class AESCrypt{
   }
 
 /*
+ * Encrypts data with the specified key and initialization vector.
+ * Parameters and return value are binary strings.
+ */
+  protected function encryptWithKey($data, $key, $iv) {
+    return openssl_encrypt(
+        $this->_addpadding($data), self::CRYPT_ALG, $key,
+        OPENSSL_RAW_DATA|OPENSSL_ZERO_PADDING, $iv);
+  }
+
+/*
+ * Decrypts data with the specified key and initialization vector.
+ * Parameters and return value are binary strings.
+ */
+  protected function decryptWithKey($data, $key, $iv) {
+    return openssl_decrypt(
+        $data, self::CRYPT_ALG, $key,
+        OPENSSL_RAW_DATA|OPENSSL_ZERO_PADDING, $iv);
+  }
+
+/*
  * Computes a hash of the provided binary string.
  * Returns a binary string.
  */
@@ -247,19 +267,17 @@ class AESCrypt{
   }
 
 /*
- *  Not used 
  *  adds padding type PAD_BLOCK 
  *  padd to native block size (default)
  *  for AES this will always be 128bit 16byte blocks
  *  or to defined $blocksize
-
+ */
   protected function _addpadding($string, $blocksize = self::BLOCK_SIZE){
     $len = strlen($string);
-    $pad = $blocksize - ($len % $blocksize);
+    $pad = ($blocksize - ($len % $blocksize)) % $blocksize;
     $string .= str_repeat(chr(self::PAD_BLOCK), $pad);
     return $string;
   }
-*/
 
 /*
  * Set the user entered password
@@ -323,13 +341,13 @@ class AESCrypt{
 // Output oIV
     $out .=$oIV;
 // encrypt and write out iIV and iAESKey 
-    $ivnkey = mcrypt_encrypt( self::CRYPT_ALG, $oAESKey,  $iIV.$iAESKey, MCRYPT_MODE_CBC, $oIV );
+    $ivnkey = $this->encryptWithKey($iIV.$iAESKey, $oAESKey, $oIV);
     $out .= $ivnkey;
 // generate HMAC for iIV and iAESKey1
     $hmac = $this->hmac($ivnkey, $oAESKey);
     $out .= $hmac;
 // hash the textstring data using the inner IV and Key
-    $ctext = mcrypt_encrypt( self::CRYPT_ALG, $iAESKey,   $data, MCRYPT_MODE_CBC, $iIV );
+    $ctext = $this->encryptWithKey($data, $iAESKey, $iIV);
     $out .= $ctext;
 // mark the last whole block size (deduct padding to full length)
     $out .= chr(strlen($data)%16);
@@ -400,7 +418,7 @@ class AESCrypt{
     $iAESKey = substr($data, $ptr, 32);// cipher iAESKey
     $ptr = $ptr+32;
 // decrypt the cipher iIV IAESKey with the cipher oIV Using the user input password generated oAESKey
-    $ivnkey = mcrypt_decrypt( self::CRYPT_ALG, $oAESKey,  $iIV.$iAESKey, MCRYPT_MODE_CBC, $oIV );
+    $ivnkey = $this->decryptWithKey($iIV.$iAESKey, $oAESKey, $oIV);
 //32 Octets - HMAC
     $ohmac = substr($data, $ptr, 32); // data HMAC cipher (iIV iAESKey) HMAC must match
     $xhmac = $this->hmac($iIV.$iAESKey, $oAESKey);// HMAC generated using oAESKey made using user password
@@ -425,7 +443,7 @@ class AESCrypt{
       trigger_error("HMAC the message is corrupt",E_USER_WARNING);
       return false;
     }
-    $ctext = mcrypt_decrypt( self::CRYPT_ALG, $iAESKey, $buffer, MCRYPT_MODE_CBC, $iIV );
+    $ctext = $this->decryptWithKey($buffer, $iAESKey, $iIV);
 	
 	// Remove padding (PT)
 	// -------------------
