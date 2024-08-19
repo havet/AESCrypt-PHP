@@ -164,7 +164,7 @@ class AESCrypt{
       trigger_error("bad byte size encryption will likley fail", E_USER_ERROR);
     for ($i = 0; $i < $num; $i++){
       for($j = 0; $j < strlen($bytes); $j++)
-        $bytes[$j] = chr(mt_rand(0,255));#(substr($bytes, $j, 1));
+        $bytes[$j] = $this->randomBytes(1);
         $digest = mhash( self::DIGEST_ALG, $bytes );
     }
     $bytes = substr($digest, 0, strlen($bytes));
@@ -176,11 +176,7 @@ class AESCrypt{
  *  by generating a 32 byte key retains compatibility with AES and php MCRYPT_RIJNDAEL_128
 */
   protected function _generateInnerAESKey() {
-    $iv='';
-// standard random character string generator        
-    for($i = 0; $i < self::KEY_SIZE; $i++)
-      $iv .= chr(mt_rand(0,255));
-    return $iv;
+    return $this->randomBytes(self::KEY_SIZE);
   }
 
 /*
@@ -196,7 +192,7 @@ class AESCrypt{
  * @return IV.
 */ 
   protected function _generateOuterIV() {
-    return mcrypt_create_iv(self::BLOCK_SIZE, self::DIGEST_ALG);
+    return $this->randomBytes(self::BLOCK_SIZE);
   }
     
 /*
@@ -220,11 +216,18 @@ class AESCrypt{
  * @return IV 2. of BLOCK_SIZE bytes (16)
 */
   protected function _generateInnerIV(){
-    $iv='';
-//        
-    for($i = 0; $i < self::BLOCK_SIZE; $i++)
-      $iv .= chr(mt_rand(0,255));
-    return $iv; 
+    return $this->randomBytes(self::BLOCK_SIZE);
+  }
+
+/*
+ * Generates a string of the specified length containing random bytes.
+ *
+ * Override this method if you need a different random number generator;
+ * the default implementation calls PHP's built-in cryptographically secure
+ * random_bytes function.
+ */
+  protected function randomBytes($length) {
+    return random_bytes($length);
   }
 
 /*
