@@ -52,7 +52,7 @@
 
 class AESCrypt{
 // copy of java declerations
-    const DIGEST_ALG = MHASH_SHA256;// hash compatible with c.aes and java-"SHA-256"  
+    const DIGEST_ALG = "sha256"; // hash compatible with c.aes and java-"SHA-256"
     const CRYPT_ALG = MCRYPT_RIJNDAEL_128;//MCRYPT_RIJNDAEL_256;// java-"AES";
 #    const CRYPT_TRANS = "AES/CBC/NoPadding";// java-"AES/CBC/NoPadding"
 #    const DEFAULT_MAC = "0x010x230x450x670x890xab0xcd0xef";
@@ -165,7 +165,7 @@ class AESCrypt{
     for ($i = 0; $i < $num; $i++){
       for($j = 0; $j < strlen($bytes); $j++)
         $bytes[$j] = $this->randomBytes(1);
-        $digest = mhash( self::DIGEST_ALG, $bytes );
+        $digest = $this->hash($bytes);
     }
     $bytes = substr($digest, 0, strlen($bytes));
   }
@@ -204,7 +204,7 @@ class AESCrypt{
   protected function _generateOuterAESKey( $iv, $password){
     $aesKey = $iv . str_repeat(chr(0), (32-strlen($iv) ));
     for ( $i = 0; $i < 8192; $i++) {//
-      $aesKey = mhash( self::DIGEST_ALG, $aesKey . $password);
+      $aesKey = $this->hash($aesKey . $password);
    }
     return $aesKey;
   }
@@ -228,6 +228,22 @@ class AESCrypt{
  */
   protected function randomBytes($length) {
     return random_bytes($length);
+  }
+
+/*
+ * Computes a hash of the provided binary string.
+ * Returns a binary string.
+ */
+  protected function hash($data) {
+    return hash(self::DIGEST_ALG, $data, $binary = true);
+  }
+
+/*
+ * Computes a HMAC for the provided data and key.
+ * Parameters and return value are binary strings.
+ */
+  protected function hmac($data, $key) {
+    return hash_hmac(self::DIGEST_ALG, $data, $key, $binary = true);
   }
 
 /*
@@ -310,7 +326,7 @@ class AESCrypt{
     $ivnkey = mcrypt_encrypt( self::CRYPT_ALG, $oAESKey,  $iIV.$iAESKey, MCRYPT_MODE_CBC, $oIV );
     $out .= $ivnkey;
 // generate HMAC for iIV and iAESKey1
-    $hmac = mhash( self::DIGEST_ALG, $ivnkey, $oAESKey); 
+    $hmac = $this->hmac($ivnkey, $oAESKey);
     $out .= $hmac;
 // hash the textstring data using the inner IV and Key
     $ctext = mcrypt_encrypt( self::CRYPT_ALG, $iAESKey,   $data, MCRYPT_MODE_CBC, $iIV );
@@ -320,7 +336,7 @@ class AESCrypt{
 	//echo nl2br("last block length: " . strlen($data)%16 . "\n");
 	//echo nl2br("last block length: " . chr(strlen($data)%16) . "\n");
 // generate the HMAC for the textstring data
-    $cmac = mhash( self::DIGEST_ALG, $ctext, $iAESKey);
+    $cmac = $this->hmac($ctext, $iAESKey);
     $out .= $cmac;
     return $out;
   }
@@ -387,7 +403,7 @@ class AESCrypt{
     $ivnkey = mcrypt_decrypt( self::CRYPT_ALG, $oAESKey,  $iIV.$iAESKey, MCRYPT_MODE_CBC, $oIV );
 //32 Octets - HMAC
     $ohmac = substr($data, $ptr, 32); // data HMAC cipher (iIV iAESKey) HMAC must match
-    $xhmac = mhash( self::DIGEST_ALG, $iIV.$iAESKey, $oAESKey);// HMAC generated using oAESKey made using user password
+    $xhmac = $this->hmac($iIV.$iAESKey, $oAESKey);// HMAC generated using oAESKey made using user password
     if($ohmac != $xhmac){
       trigger_error("HMAC mismatch the password is incorrect or the message is corrupt",E_USER_WARNING);
       return false;
@@ -404,7 +420,7 @@ class AESCrypt{
 // ciphertext HMAC
     $xhmac = substr($data,strlen($data)-32, 32);
 // generate the HMAC for the textstring data
-    $cmac = mhash( self::DIGEST_ALG, $buffer, $iAESKey);
+    $cmac = $this->hmac($buffer, $iAESKey);
     if($cmac != $xhmac){
       trigger_error("HMAC the message is corrupt",E_USER_WARNING);
       return false;
