@@ -52,14 +52,14 @@
 
 class AESCrypt{
 // copy of java declerations
-    const DIGEST_ALG = MHASH_SHA256;// hash compatible with c.aes and java-"SHA-256"  
-    const CRYPT_ALG = MCRYPT_RIJNDAEL_128;//MCRYPT_RIJNDAEL_256;// java-"AES";
+    const DIGEST_ALG = "sha256"; // hash compatible with c.aes and java-"SHA-256"
+    const CRYPT_ALG = "aes-256-cbc"; // java-"AES";
 #    const CRYPT_TRANS = "AES/CBC/NoPadding";// java-"AES/CBC/NoPadding"
 #    const DEFAULT_MAC = "0x010x230x450x670x890xab0xcd0xef";
     const KEY_SIZE = 32; // Note requirements of key size to allow AES compatibility
     const BLOCK_SIZE = 16; // final data must be padded to a whole block size
     const SHA_SIZE = 32;
-    //const PAD_BLOCK = 0; // padding characters: not used
+    const PAD_BLOCK = 0; // padding characters
 // valid extension type vectors
     const CREATED_BY = 0;
     const CREATED_DATE = 1;
@@ -164,8 +164,8 @@ class AESCrypt{
       trigger_error("bad byte size encryption will likley fail", E_USER_ERROR);
     for ($i = 0; $i < $num; $i++){
       for($j = 0; $j < strlen($bytes); $j++)
-        $bytes[$j] = chr(mt_rand(0,255));#(substr($bytes, $j, 1));
-        $digest = mhash( self::DIGEST_ALG, $bytes );
+        $bytes[$j] = $this->randomBytes(1);
+        $digest = $this->hash($bytes);
     }
     $bytes = substr($digest, 0, strlen($bytes));
   }
@@ -176,11 +176,7 @@ class AESCrypt{
  *  by generating a 32 byte key retains compatibility with AES and php MCRYPT_RIJNDAEL_128
 */
   protected function _generateInnerAESKey() {
-    $iv='';
-// standard random character string generator        
-    for($i = 0; $i < self::KEY_SIZE; $i++)
-      $iv .= chr(mt_rand(0,255));
-    return $iv;
+    return $this->randomBytes(self::KEY_SIZE);
   }
 
 /*
@@ -196,7 +192,7 @@ class AESCrypt{
  * @return IV.
 */ 
   protected function _generateOuterIV() {
-    return mcrypt_create_iv(self::BLOCK_SIZE, self::DIGEST_ALG);
+    return $this->randomBytes(self::BLOCK_SIZE);
   }
     
 /*
@@ -208,7 +204,7 @@ class AESCrypt{
   protected function _generateOuterAESKey( $iv, $password){
     $aesKey = $iv . str_repeat(chr(0), (32-strlen($iv) ));
     for ( $i = 0; $i < 8192; $i++) {//
-      $aesKey = mhash( self::DIGEST_ALG, $aesKey . $password);
+      $aesKey = $this->hash($aesKey . $password);
    }
     return $aesKey;
   }
@@ -220,27 +216,68 @@ class AESCrypt{
  * @return IV 2. of BLOCK_SIZE bytes (16)
 */
   protected function _generateInnerIV(){
-    $iv='';
-//        
-    for($i = 0; $i < self::BLOCK_SIZE; $i++)
-      $iv .= chr(mt_rand(0,255));
-    return $iv; 
+    return $this->randomBytes(self::BLOCK_SIZE);
   }
 
 /*
- *  Not used 
+ * Generates a string of the specified length containing random bytes.
+ *
+ * Override this method if you need a different random number generator;
+ * the default implementation calls PHP's built-in cryptographically secure
+ * random_bytes function.
+ */
+  protected function randomBytes($length) {
+    return random_bytes($length);
+  }
+
+/*
+ * Encrypts data with the specified key and initialization vector.
+ * Parameters and return value are binary strings.
+ */
+  protected function encryptWithKey($data, $key, $iv) {
+    return openssl_encrypt(
+        $this->_addpadding($data), self::CRYPT_ALG, $key,
+        OPENSSL_RAW_DATA|OPENSSL_ZERO_PADDING, $iv);
+  }
+
+/*
+ * Decrypts data with the specified key and initialization vector.
+ * Parameters and return value are binary strings.
+ */
+  protected function decryptWithKey($data, $key, $iv) {
+    return openssl_decrypt(
+        $data, self::CRYPT_ALG, $key,
+        OPENSSL_RAW_DATA|OPENSSL_ZERO_PADDING, $iv);
+  }
+
+/*
+ * Computes a hash of the provided binary string.
+ * Returns a binary string.
+ */
+  protected function hash($data) {
+    return hash(self::DIGEST_ALG, $data, $binary = true);
+  }
+
+/*
+ * Computes a HMAC for the provided data and key.
+ * Parameters and return value are binary strings.
+ */
+  protected function hmac($data, $key) {
+    return hash_hmac(self::DIGEST_ALG, $data, $key, $binary = true);
+  }
+
+/*
  *  adds padding type PAD_BLOCK 
  *  padd to native block size (default)
  *  for AES this will always be 128bit 16byte blocks
  *  or to defined $blocksize
-
+ */
   protected function _addpadding($string, $blocksize = self::BLOCK_SIZE){
     $len = strlen($string);
-    $pad = $blocksize - ($len % $blocksize);
+    $pad = ($blocksize - ($len % $blocksize)) % $blocksize;
     $string .= str_repeat(chr(self::PAD_BLOCK), $pad);
     return $string;
   }
-*/
 
 /*
  * Set the user entered password
@@ -304,20 +341,20 @@ class AESCrypt{
 // Output oIV
     $out .=$oIV;
 // encrypt and write out iIV and iAESKey 
-    $ivnkey = mcrypt_encrypt( self::CRYPT_ALG, $oAESKey,  $iIV.$iAESKey, MCRYPT_MODE_CBC, $oIV );
+    $ivnkey = $this->encryptWithKey($iIV.$iAESKey, $oAESKey, $oIV);
     $out .= $ivnkey;
 // generate HMAC for iIV and iAESKey1
-    $hmac = mhash( self::DIGEST_ALG, $ivnkey, $oAESKey); 
+    $hmac = $this->hmac($ivnkey, $oAESKey);
     $out .= $hmac;
 // hash the textstring data using the inner IV and Key
-    $ctext = mcrypt_encrypt( self::CRYPT_ALG, $iAESKey,   $data, MCRYPT_MODE_CBC, $iIV );
+    $ctext = $this->encryptWithKey($data, $iAESKey, $iIV);
     $out .= $ctext;
 // mark the last whole block size (deduct padding to full length)
     $out .= chr(strlen($data)%16);
 	//echo nl2br("last block length: " . strlen($data)%16 . "\n");
 	//echo nl2br("last block length: " . chr(strlen($data)%16) . "\n");
 // generate the HMAC for the textstring data
-    $cmac = mhash( self::DIGEST_ALG, $ctext, $iAESKey);
+    $cmac = $this->hmac($ctext, $iAESKey);
     $out .= $cmac;
     return $out;
   }
@@ -381,10 +418,10 @@ class AESCrypt{
     $iAESKey = substr($data, $ptr, 32);// cipher iAESKey
     $ptr = $ptr+32;
 // decrypt the cipher iIV IAESKey with the cipher oIV Using the user input password generated oAESKey
-    $ivnkey = mcrypt_decrypt( self::CRYPT_ALG, $oAESKey,  $iIV.$iAESKey, MCRYPT_MODE_CBC, $oIV );
+    $ivnkey = $this->decryptWithKey($iIV.$iAESKey, $oAESKey, $oIV);
 //32 Octets - HMAC
     $ohmac = substr($data, $ptr, 32); // data HMAC cipher (iIV iAESKey) HMAC must match
-    $xhmac = mhash( self::DIGEST_ALG, $iIV.$iAESKey, $oAESKey);// HMAC generated using oAESKey made using user password
+    $xhmac = $this->hmac($iIV.$iAESKey, $oAESKey);// HMAC generated using oAESKey made using user password
     if($ohmac != $xhmac){
       trigger_error("HMAC mismatch the password is incorrect or the message is corrupt",E_USER_WARNING);
       return false;
@@ -401,12 +438,12 @@ class AESCrypt{
 // ciphertext HMAC
     $xhmac = substr($data,strlen($data)-32, 32);
 // generate the HMAC for the textstring data
-    $cmac = mhash( self::DIGEST_ALG, $buffer, $iAESKey);
+    $cmac = $this->hmac($buffer, $iAESKey);
     if($cmac != $xhmac){
       trigger_error("HMAC the message is corrupt",E_USER_WARNING);
       return false;
     }
-    $ctext = mcrypt_decrypt( self::CRYPT_ALG, $iAESKey, $buffer, MCRYPT_MODE_CBC, $iIV );
+    $ctext = $this->decryptWithKey($buffer, $iAESKey, $iIV);
 	
 	// Remove padding (PT)
 	// -------------------

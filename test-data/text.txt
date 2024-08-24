@@ -1,0 +1,2 @@
+This is an example file used in the test cases.
+大家好! (Those should be UTF-8 encoded Chinese characters.)
